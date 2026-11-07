@@ -8,14 +8,28 @@ const ORIGIN = 'https://walengmen-lab.jefferyhualiu.chatgpt.site';
 const MIRROR = 'https://apexegg.github.io/walengmen-web';
 const sha = (b) => createHash('sha256').update(b).digest('hex');
 const dateKey = (s) => { try { return typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s) && new Date(s + 'T00:00Z').toISOString().slice(0, 10) === s; } catch { return false; } };
-async function json(path, max = 256 * 1024, fetcher = fetch, origin = ORIGIN) {
+export async function readPublicJson(path, max = 256 * 1024, fetcher = fetch, origin = ORIGIN, pause = (ms) => new Promise((done) => setTimeout(done, ms))) {
   if (!/^\/(api\/(catalog|rounds\/(today|\d{4}-\d{2}-\d{2}))|content\/[a-f0-9]{64}(\/source)?\.json)$/.test(path)) throw Error('Refusing a non-public API path');
-  const r = await fetcher(origin + path, { signal: AbortSignal.timeout(20000), redirect: 'error', headers: { accept: 'application/json' } });
+  let r;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try {
+      r = await fetcher(origin + path, { signal: AbortSignal.timeout(20000), redirect: 'error', headers: { accept: 'application/json' } });
+    } catch (error) {
+      if (attempt === 3) throw error;
+      await pause(1000 * 2 ** attempt); continue;
+    }
+    if (![408, 425, 429, 500, 502, 503, 504].includes(r.status) || attempt === 3) break;
+    const retryAfter = r.headers.get('retry-after');
+    const requestedWait = retryAfter === null ? 0 : /^\d+$/.test(retryAfter) ? Number(retryAfter) * 1000 : Date.parse(retryAfter) - Date.now();
+    const delay = Math.min(60000, Math.max(1000 * 2 ** attempt, Number.isFinite(requestedWait) ? requestedWait : 0));
+    await r.body?.cancel(); await pause(delay);
+  }
   if (!r.ok || !/application\/json/i.test(r.headers.get('content-type') ?? '')) throw Error('Public source unavailable: ' + r.status);
   const parts = []; let size = 0;
   for await (const part of r.body) { size += part.length; if (size > max) throw Error('Public response exceeds budget'); parts.push(part); }
   const bytes = Buffer.concat(parts); return { value: JSON.parse(bytes.toString('utf8')), bytes };
 }
+const json = readPublicJson;
 async function files(dir, prefix = '') {
   const out = [];
   for (const e of await readdir(dir, { withFileTypes: true })) {
