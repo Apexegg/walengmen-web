@@ -1,0 +1,13 @@
+# 挖冷门 · Rare Dig free prototype
+
+Independent, free Mandarin rare-answer game prototype by Yichen and Jeffery. Original code and pixel geology scene; unaffiliated with Krillion. No ads, purchases, accounts or game telemetry on this mirror. This is a testing/demo route, not commercial hosting.
+
+The canonical application and independent content review system are at https://walengmen-lab.jefferyhualiu.chatgpt.site. This repository contains only compiled public player assets and already-released source-backed data, never backend code, owner data, credentials or unopened rounds. It checks the anonymous canonical API about every15minutes and verifies each playable pack's SHA-256. Scheduled jobs can be delayed. It retains up to30recent public rounds within its byte budget. A failed synchronization leaves the previous deployment online.
+
+English is read-only display metadata over the same Mandarin judging bank. Rarity is provisional editorial judgment; illustrative distributions are fictional. Each question's results include scope, source notices and a download of its frozen source data. Those source-specific licences apply to the relevant derived data, including CC0, CC BY-SA4.0 and ODbL1.0. No blanket licence is granted to third-party names or trademarks.
+
+## Delivery and limits
+
+GitHub Pages is a free demo fallback, not a mainland availability or capacity guarantee. Its published-site limit is1GB and bandwidth is a soft100GB/month. This build caps public output at400MiB. Move to appropriate commercial hosting before adding commercial services or transactions. Current official limits: https://docs.github.com/en/pages/getting-started-with-github-pages/github-pages-limits.
+
+`node sync-public.mjs` builds `public/` from `web/` and the opened-round API. It requires no credentials and refuses non-public API paths. The workflow deploys only when the reviewed rounds/date or player assets change, avoiding redundant artifact uploads. Only a small immutable date/hash manifest is committed after successful publication. Large snapshots are reused from the live mirror or temporary compressed cache, so daily blobs do not accumulate in git history; `GITHUB_TOKEN` never enters the player bundle. Game progress stays on the local device; GitHub handles network logs under its own policy.

@@ -1,0 +1,6 @@
+public/
+public.next/
+public.previous/
+node_modules/
+cache/*.gz
+cache/*.sha256

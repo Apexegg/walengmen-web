@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#140d09">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex, nofollow">
+  <title>挖冷门 · 免费测试镜像</title>
+  <link rel="stylesheet" href="/walengmen-web/assets/play.22a19309.css">
+  <script type="module" src="/walengmen-web/assets/play.dd2fbb1a.js"></script>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; font-src 'none'; media-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"><link rel="icon" href="/walengmen-web/icon.svg"></head>
+<body class="is-home">
+  <canvas id="world" aria-hidden="true"></canvas>
+  <div class="strata-labels" aria-hidden="true"><div class="track" id="strataTrack"></div></div>
+  <div class="ruler" aria-hidden="true">
+    <div class="track" id="rulerTrack"></div>
+    <div class="ruler-you" id="rulerYou"><span id="rulerYouLabel">YOU</span><i></i></div>
+  </div>
+
+  <header class="hud" id="hud" hidden>
+    <div class="hud-box hud-depth"><span class="hud-label" data-t="hud.depth"></span><span class="hud-val" id="hudDepth">0m</span></div>
+    <div class="hud-mid"><div class="pips" id="pips" aria-hidden="true"></div><div class="hud-label" id="hudQ"></div></div>
+    <div class="hud-box hud-score"><span class="hud-label" data-t="hud.score"></span><span class="hud-val" id="hudScore">0</span></div>
+  </header>
+
+  <div class="corner" id="corner">
+    <button class="sq" id="btnSound" type="button"></button>
+    <button class="sq sq-lang" id="btnLang" type="button">EN</button>
+  </div>
+
+  <section class="screen screen-home" id="screenHome">
+    <div class="home-top">
+      <h1 class="title"><canvas id="titleCanvas" aria-hidden="true"></canvas><span class="sr">挖冷门</span></h1>
+      <p class="brand-sub" data-t="brand.sub"></p>
+      <p class="tagline" data-t="home.tagline"></p>
+    </div>
+    <div class="home-bottom">
+      <details class="howto" id="howto">
+        <summary data-t="home.howto"></summary>
+        <ol>
+          <li data-t="home.howto.1"></li>
+          <li data-t="home.howto.2"></li>
+          <li data-t="home.howto.3"></li>
+          <li data-t="home.howto.4"></li>
+        </ol>
+      </details>
+      <button class="big-btn" id="btnStart" type="button"><span class="arr" aria-hidden="true">▼</span><span id="startLabel"></span><span class="arr" aria-hidden="true">▼</span></button>
+      <div class="home-meta"><span id="homeRound"></span><span id="homeNext"></span></div>
+      <p class="note" data-t="home.note"></p>
+      <p class="note" id="homeSaveWarning" role="status"></p>
+    </div>
+  </section>
+
+  <section class="screen screen-play" id="screenPlay" hidden>
+    <div class="prompt-card" id="promptCard">
+      <div class="kicker" id="promptKicker"></div>
+      <h2 class="prompt" id="promptText"></h2>
+      <p class="rule" id="promptRule"></p>
+      <div class="foot">▼ <span data-t="play.foot"></span> ▼</div>
+      <div class="preview-bar"><i id="previewFill"></i></div>
+    </div>
+  </section>
+
+  <section class="screen screen-reveal" id="screenReveal" hidden>
+    <div class="ladder" id="ladder" hidden></div>
+    <div class="reveal" id="revealCard" hidden>
+      <img class="reveal-icon" id="revealIcon" alt="">
+      <div class="reveal-tier" id="revealTier"></div>
+      <div class="reveal-answer" id="revealAnswer"></div>
+      <div class="reveal-pts" id="revealPts"></div>
+      <div class="reveal-flavor" id="revealFlavor"></div>
+    </div>
+    <button class="next-btn" id="btnNext" type="button" hidden></button>
+  </section>
+
+  <section class="screen screen-results" id="screenResults" hidden>
+    <div class="results" id="results"></div>
+  </section>
+
+  <div class="controls" id="controls" hidden>
+    <div class="feedback" id="feedback" role="status" aria-live="polite"></div>
+    <div class="row">
+      <div class="clock" id="clock" aria-hidden="true"><span id="clockNum">25</span></div>
+      <label class="sr" for="answer" data-t="play.answerLabel"></label>
+      <input id="answer" type="text" inputmode="text" lang="zh-CN" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="go" maxlength="40">
+      <button class="dig" id="btnSubmit" type="button"></button>
+    </div>
+    <div class="timer"><i id="timerFill"></i></div>
+    <div class="under"><span class="hint" id="enHint"></span><button class="skip" id="btnSkip" type="button"></button></div>
+  </div>
+
+  <div class="scanlines" aria-hidden="true"></div>
+  <noscript><p class="noscript">挖冷门需要开启 JavaScript。</p></noscript>
+</body>
+</html>

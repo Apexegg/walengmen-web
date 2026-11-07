@@ -1,0 +1,97 @@
+// Reads ONLY the anonymous, opened-round API. No owner identity or secrets.
+import { readFile, writeFile, mkdir, cp, rm, readdir, rename } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { gzipSync, gunzipSync } from 'node:zlib';
+import { resolve, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+const ORIGIN = 'https://walengmen-lab.jefferyhualiu.chatgpt.site';
+const MIRROR = 'https://apexegg.github.io/walengmen-web';
+const sha = (b) => createHash('sha256').update(b).digest('hex');
+const dateKey = (s) => { try { return typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s) && new Date(s + 'T00:00Z').toISOString().slice(0, 10) === s; } catch { return false; } };
+async function json(path, max = 256 * 1024, fetcher = fetch, origin = ORIGIN) {
+  if (!/^\/(api\/(catalog|rounds\/(today|\d{4}-\d{2}-\d{2}))|content\/[a-f0-9]{64}(\/source)?\.json)$/.test(path)) throw Error('Refusing a non-public API path');
+  const r = await fetcher(origin + path, { signal: AbortSignal.timeout(20000), redirect: 'error', headers: { accept: 'application/json' } });
+  if (!r.ok || !/application\/json/i.test(r.headers.get('content-type') ?? '')) throw Error('Public source unavailable: ' + r.status);
+  const parts = []; let size = 0;
+  for await (const part of r.body) { size += part.length; if (size > max) throw Error('Public response exceeds budget'); parts.push(part); }
+  const bytes = Buffer.concat(parts); return { value: JSON.parse(bytes.toString('utf8')), bytes };
+}
+async function files(dir, prefix = '') {
+  const out = [];
+  for (const e of await readdir(dir, { withFileTypes: true })) {
+    const name = prefix + e.name;
+    if (e.isDirectory()) out.push(...await files(join(dir, e.name), name + '/'));
+    else if (e.isFile()) out.push([name, sha(await readFile(join(dir, e.name)))]);
+    else throw Error('Symlinks are forbidden in the public mirror');
+  } return out.sort((a, b) => a[0].localeCompare(b[0]));
+}
+export async function syncPublic({ root = process.cwd(), fetcher = fetch } = {}) {
+  const cache = join(root, 'cache'), pub = join(root, 'public'); await mkdir(cache, { recursive: true });
+  const catalog = (await json('/api/catalog', undefined, fetcher)).value;
+  if (catalog.degraded) throw Error('Refusing a degraded catalog; preserve the existing deployment');
+  if (!dateKey(catalog.today) || !Array.isArray(catalog.rounds) || catalog.rounds.length > 10000) throw Error('Malformed public catalog');
+  const selected = catalog.rounds.filter((r) => dateKey(r.dateKey) && r.dateKey <= catalog.today).sort((a, b) => a.dateKey.localeCompare(b.dateKey)).slice(-30);
+  if (!selected.length || new Set(selected.map((r) => r.dateKey)).size !== selected.length) throw Error('No distinct released rounds');
+  let old; try { old = JSON.parse(await readFile(join(cache, 'published.json'), 'utf8')); } catch { /* first publish */ }
+  for (const prior of old?.rounds ?? []) {
+    if (prior.date < selected[0].dateKey && selected.length === 30) continue;
+    const current = selected.find((r) => r.dateKey === prior.date);
+    if (!current) throw Error('Published history disappeared; preserve the existing deployment');
+    if (current.hash !== prior.hash || (prior.sourceHash && current.sourceHash !== prior.sourceHash)) throw Error('Published daily identity changed; preserve the existing deployment');
+  }
+  const stamp = sha(JSON.stringify({ assets: await files(join(root, 'web')), rounds: selected.map((r) => [r.dateKey, r.hash, r.sourceHash, r.version]), today: catalog.today }));
+  if (old?.stamp === stamp) return { changed: false, date: catalog.today, rounds: old.rounds.length, bytes: old.bytes };
+  const fetchBlob = async (path, max, expected) => {
+    try { const b = (await json(path, max, fetcher, MIRROR)).bytes; if (sha(b) === expected) return b; } catch { /* mirror not yet populated or unreachable */ }
+    const b = (await json(path, max, fetcher)).bytes;
+    if (sha(b) !== expected) throw Error('Public archive failed SHA-256 verification'); return b;
+  };
+  const metadata = [], blobs = [];
+  for (const row of selected) {
+    if (!/^[a-f0-9]{64}$/.test(row.hash)) throw Error('Invalid public content hash');
+    const round = (await json('/api/rounds/' + row.dateKey, undefined, fetcher)).value;
+    if (round.hash !== row.hash || round.dateKey !== row.dateKey || round.roundId !== row.dateKey || round.contentUrl !== `/content/${row.hash}.json` || round.sourceUrl !== `/content/${row.hash}/source.json` || !/^[a-f0-9]{64}$/.test(round.sourceHash ?? '') || round.sourceHash !== row.sourceHash) throw Error('Round identity mismatch');
+    const key = join(cache, row.hash + '.json.gz'), sourceKey = join(cache, row.hash + '.source.json.gz');
+    let play;
+    try { play = gunzipSync(await readFile(key), { maxOutputLength: 3 * 1024 * 1024 }); } catch { play = await fetchBlob(round.contentUrl, 3 * 1024 * 1024, row.hash); }
+    if (sha(play) !== row.hash) throw Error('Published round failed SHA-256 verification');
+    const pack = JSON.parse(play.toString('utf8'));
+    if (pack.id !== round.packId || pack.questions?.length !== 7 || pack.questions.some((q) => !Array.isArray(q.answers) || !q.answers.length || !q.prompt?.zh || !q.rule?.zh)) throw Error('Invalid seven-question pack');
+    let source;
+    try {
+      source = gunzipSync(await readFile(sourceKey), { maxOutputLength: 12 * 1024 * 1024 });
+      if (sha(source) !== (await readFile(sourceKey + '.sha256', 'utf8')).trim()) throw Error('Cached source hash mismatch');
+    } catch { source = await fetchBlob(round.sourceUrl, 12 * 1024 * 1024, round.sourceHash); }
+    const full = JSON.parse(source.toString('utf8'));
+    if (sha(source) !== round.sourceHash) throw Error('Frozen source archive failed SHA-256 verification');
+    if (full.id !== pack.id || full.questions?.length !== 7 || full.questions.some((q, i) => q.id !== pack.questions[i].id || q.answers.length !== pack.questions[i].answers.length)) throw Error('Source archive does not match released questions');
+    await writeFile(key, gzipSync(play, { level: 9 })); await writeFile(sourceKey, gzipSync(source, { level: 9 })); await writeFile(sourceKey + '.sha256', sha(source) + '\n');
+    metadata.push(round); blobs.push({ hash: row.hash, play, source });
+  }
+  const changed = true;
+  const estimated = () => blobs.reduce((n, b) => n + b.play.length + b.source.length, 1024 * 1024);
+  while (estimated() > 390 * 1024 * 1024 && blobs.length > 1) { blobs.shift(); metadata.shift(); selected.shift(); }
+  const next = pub + '.next'; await rm(next, { recursive: true, force: true }); await cp(join(root, 'web'), next, { recursive: true });
+  await mkdir(join(next, 'api/rounds'), { recursive: true }); await mkdir(join(next, 'content'), { recursive: true });
+  const latest = metadata.at(-1);
+  await writeFile(join(next, 'api/catalog.json'), JSON.stringify({ ...catalog, rounds: selected }));
+  for (const r of metadata) await writeFile(join(next, 'api/rounds', r.dateKey + '.json'), JSON.stringify(r));
+  await writeFile(join(next, 'api/rounds/today.json'), JSON.stringify({ ...latest, requestedDate: catalog.today, availability: latest.dateKey === catalog.today ? 'current' : 'fallback' }));
+  for (const b of blobs) {
+    await writeFile(join(next, 'content', b.hash + '.json'), b.play); await mkdir(join(next, 'content', b.hash), { recursive: true }); await writeFile(join(next, 'content', b.hash, 'source.json'), b.source);
+  }
+  const sizes = await Promise.all((await files(next)).map(async ([name]) => (await readFile(join(next, name))).length));
+  const bytes = sizes.reduce((a, b) => a + b, 0); if (bytes > 400 * 1024 * 1024) throw Error('Mirror exceeds its conservative400MiB budget');
+  const backup = pub + '.previous'; await rm(backup, { recursive: true, force: true });
+  try { await rename(pub, backup); } catch (e) { if (e.code !== 'ENOENT') throw e; }
+  try { await rename(next, pub); } catch (e) { try { await rename(backup, pub); } catch {} throw e; }
+  await rm(backup, { recursive: true, force: true });
+  const hashes = new Set(blobs.map((b) => b.hash));
+  for (const name of await readdir(cache)) if (/^[a-f0-9]{64}(\.source)?\.json\.gz(\.sha256)?$/.test(name) && !hashes.has(name.slice(0, 64))) await rm(join(cache, name));
+  await writeFile(join(cache, 'published.json'), JSON.stringify({ stamp, source: ORIGIN, date: catalog.today, rounds: metadata.map((r) => ({ date: r.dateKey, hash: r.hash, sourceHash: r.sourceHash })), bytes }, null, 2) + '\n');
+  return { changed, date: catalog.today, rounds: metadata.length, bytes };
+}
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const result = await syncPublic(); console.log(JSON.stringify(result));
+  if (process.env.GITHUB_OUTPUT) await writeFile(process.env.GITHUB_OUTPUT, `publish=${result.changed}\n`, { flag: 'a' });
+}
