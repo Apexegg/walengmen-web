@@ -1,0 +1,52 @@
+name: Sync reviewed rounds and publish free demo
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: '7,22,37,52 * * * *'
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+concurrency:
+  group: mirror-publication
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: main
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: '24'
+      - name: Fetch only released public rounds and verify hashes
+        id: sync
+        run: node sync-public.mjs
+      - uses: actions/upload-pages-artifact@v5.0.0
+        if: steps.sync.outputs.publish == 'true'
+        with:
+          path: public
+          retention-days: 1
+      - name: Publish free demo
+        id: deployment
+        if: steps.sync.outputs.publish == 'true'
+        uses: actions/deploy-pages@v5.0.1
+      - name: Record immutable identities after a successful publish
+        if: steps.sync.outputs.publish == 'true' && steps.deployment.outcome == 'success'
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add cache/published.json
+          if ! git diff --cached --quiet; then
+            git commit -F - <<'MESSAGE'
+          Preserve verified public demo snapshots
+          MESSAGE
+            git pull --rebase origin main
+            git push
+          fi
