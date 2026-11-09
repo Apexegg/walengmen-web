@@ -9,7 +9,7 @@ const MIRROR = 'https://apexegg.github.io/walengmen-web';
 const sha = (b) => createHash('sha256').update(b).digest('hex');
 const dateKey = (s) => { try { return typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s) && new Date(s + 'T00:00Z').toISOString().slice(0, 10) === s; } catch { return false; } };
 export async function readPublicJson(path, max = 256 * 1024, fetcher = fetch, origin = ORIGIN, pause = (ms) => new Promise((done) => setTimeout(done, ms))) {
-  if (!/^\/(api\/(catalog|rounds\/(today|\d{4}-\d{2}-\d{2}))|content\/[a-f0-9]{64}(\/source)?\.json)$/.test(path)) throw Error('Refusing a non-public API path');
+  if (!/^\/(api\/(catalog|rounds\/(today|\d{4}-\d{2}-\d{2})(\?hash=[a-f0-9]{64})?)|content\/[a-f0-9]{64}(\/source)?\.json)$/.test(path)) throw Error('Refusing a non-public API path');
   let r;
   for (let attempt = 0; attempt < 4; attempt++) {
     try {
@@ -46,14 +46,21 @@ export async function syncPublic({ root = process.cwd(), fetcher = fetch } = {})
   if (!dateKey(catalog.today) || !Array.isArray(catalog.rounds) || catalog.rounds.length > 10000) throw Error('Malformed public catalog');
   const selected = catalog.rounds.filter((r) => dateKey(r.dateKey) && r.dateKey <= catalog.today).sort((a, b) => a.dateKey.localeCompare(b.dateKey)).slice(-30);
   if (!selected.length || new Set(selected.map((r) => r.dateKey)).size !== selected.length) throw Error('No distinct released rounds');
+  const editions = Array.isArray(catalog.editions) ? catalog.editions.filter(e => selected.some(r => r.dateKey === e.dateKey)) : [];
   let old; try { old = JSON.parse(await readFile(join(cache, 'published.json'), 'utf8')); } catch { /* first publish */ }
   for (const prior of old?.rounds ?? []) {
     if (prior.date < selected[0].dateKey && selected.length === 30) continue;
     const current = selected.find((r) => r.dateKey === prior.date);
     if (!current) throw Error('Published history disappeared; preserve the existing deployment');
-    if (current.hash !== prior.hash || (prior.sourceHash && current.sourceHash !== prior.sourceHash)) throw Error('Published daily identity changed; preserve the existing deployment');
+    if (current.hash !== prior.hash || (prior.sourceHash && current.sourceHash !== prior.sourceHash)) {
+      const previous = editions.find(e => e.dateKey === prior.date && e.hash === prior.hash && (!prior.sourceHash || e.sourceHash === prior.sourceHash));
+      const correction = current.rarityEdition;
+      if (!previous || !correction || correction.baseHash !== (previous.rarityEdition?.baseHash ?? previous.hash)
+        || !(correction.generation > (previous.rarityEdition?.generation ?? 0)) || !/^[a-f0-9]{64}$/.test(correction.evidenceHash ?? '')
+        || !correction.reviewerRunId || correction.reviewerRunId === correction.authorRunId) throw Error('Published daily identity changed without a preserved reviewed rarity edition; preserve the existing deployment');
+    }
   }
-  const stamp = sha(JSON.stringify({ assets: await files(join(root, 'web')), rounds: selected.map((r) => [r.dateKey, r.hash, r.sourceHash, r.version]), today: catalog.today }));
+  const stamp = sha(JSON.stringify({ assets: await files(join(root, 'web')), rounds: selected.map((r) => [r.dateKey, r.hash, r.sourceHash, r.version]), editions: editions.map(e => [e.dateKey, e.hash, e.sourceHash]), today: catalog.today }));
   if (old?.stamp === stamp) return { changed: false, date: catalog.today, rounds: old.rounds.length, bytes: old.bytes };
   const fetchBlob = async (path, max, expected) => {
     try { const b = (await json(path, max, fetcher, MIRROR)).bytes; if (sha(b) === expected) return b; } catch { /* mirror not yet populated or unreachable */ }
@@ -61,9 +68,11 @@ export async function syncPublic({ root = process.cwd(), fetcher = fetch } = {})
     if (sha(b) !== expected) throw Error('Public archive failed SHA-256 verification'); return b;
   };
   const metadata = [], blobs = [];
-  for (const row of selected) {
+  const historical = editions.filter(e => !selected.some(r => r.dateKey === e.dateKey && r.hash === e.hash));
+  for (const row of [...selected, ...historical]) {
     if (!/^[a-f0-9]{64}$/.test(row.hash)) throw Error('Invalid public content hash');
-    const round = (await json('/api/rounds/' + row.dateKey, undefined, fetcher)).value;
+    const exact = historical.includes(row) ? '?hash=' + row.hash : '';
+    const round = (await json('/api/rounds/' + row.dateKey + exact, undefined, fetcher)).value;
     if (round.hash !== row.hash || round.dateKey !== row.dateKey || round.roundId !== row.dateKey || round.contentUrl !== `/content/${row.hash}.json` || round.sourceUrl !== `/content/${row.hash}/source.json` || !/^[a-f0-9]{64}$/.test(round.sourceHash ?? '') || round.sourceHash !== row.sourceHash) throw Error('Round identity mismatch');
     const key = join(cache, row.hash + '.json.gz'), sourceKey = join(cache, row.hash + '.source.json.gz');
     let play;
@@ -84,12 +93,20 @@ export async function syncPublic({ root = process.cwd(), fetcher = fetch } = {})
   }
   const changed = true;
   const estimated = () => blobs.reduce((n, b) => n + b.play.length + b.source.length, 1024 * 1024);
-  while (estimated() > 390 * 1024 * 1024 && blobs.length > 1) { blobs.shift(); metadata.shift(); selected.shift(); }
+  while (estimated() > 390 * 1024 * 1024 && selected.length > 1) {
+    const date = selected.shift().dateKey;
+    for (let i = metadata.length - 1; i >= 0; i--) if (metadata[i].dateKey === date) metadata.splice(i, 1);
+    const needed = new Set(metadata.map(m => m.hash));
+    for (let i = blobs.length - 1; i >= 0; i--) if (!needed.has(blobs[i].hash)) blobs.splice(i, 1);
+  }
   const next = pub + '.next'; await rm(next, { recursive: true, force: true }); await cp(join(root, 'web'), next, { recursive: true });
   await mkdir(join(next, 'api/rounds'), { recursive: true }); await mkdir(join(next, 'content'), { recursive: true });
-  const latest = metadata.at(-1);
-  await writeFile(join(next, 'api/catalog.json'), JSON.stringify({ ...catalog, rounds: selected }));
-  for (const r of metadata) await writeFile(join(next, 'api/rounds', r.dateKey + '.json'), JSON.stringify(r));
+  const latest = metadata.find(m => m.dateKey === selected.at(-1).dateKey && m.hash === selected.at(-1).hash);
+  await writeFile(join(next, 'api/catalog.json'), JSON.stringify({ ...catalog, rounds: selected, ...(editions.length ? { editions: editions.filter(e => selected.some(r => r.dateKey === e.dateKey)) } : {}) }));
+  for (const r of metadata) {
+    await writeFile(join(next, 'api/rounds', r.dateKey + '--' + r.hash + '.json'), JSON.stringify(r));
+    if (selected.some(s => s.dateKey === r.dateKey && s.hash === r.hash)) await writeFile(join(next, 'api/rounds', r.dateKey + '.json'), JSON.stringify(r));
+  }
   await writeFile(join(next, 'api/rounds/today.json'), JSON.stringify({ ...latest, requestedDate: catalog.today, availability: latest.dateKey === catalog.today ? 'current' : 'fallback' }));
   for (const b of blobs) {
     await writeFile(join(next, 'content', b.hash + '.json'), b.play); await mkdir(join(next, 'content', b.hash), { recursive: true }); await writeFile(join(next, 'content', b.hash, 'source.json'), b.source);
@@ -102,8 +119,8 @@ export async function syncPublic({ root = process.cwd(), fetcher = fetch } = {})
   await rm(backup, { recursive: true, force: true });
   const hashes = new Set(blobs.map((b) => b.hash));
   for (const name of await readdir(cache)) if (/^[a-f0-9]{64}(\.source)?\.json\.gz(\.sha256)?$/.test(name) && !hashes.has(name.slice(0, 64))) await rm(join(cache, name));
-  await writeFile(join(cache, 'published.json'), JSON.stringify({ stamp, source: ORIGIN, date: catalog.today, rounds: metadata.map((r) => ({ date: r.dateKey, hash: r.hash, sourceHash: r.sourceHash })), bytes }, null, 2) + '\n');
-  return { changed, date: catalog.today, rounds: metadata.length, bytes };
+  await writeFile(join(cache, 'published.json'), JSON.stringify({ stamp, source: ORIGIN, date: catalog.today, rounds: selected.map((r) => ({ date: r.dateKey, hash: r.hash, sourceHash: r.sourceHash })), editions: metadata.length, bytes }, null, 2) + '\n');
+  return { changed, date: catalog.today, rounds: selected.length, editions: metadata.length, bytes };
 }
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const result = await syncPublic(); console.log(JSON.stringify(result));
