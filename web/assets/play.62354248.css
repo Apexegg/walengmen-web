@@ -15,6 +15,7 @@
   --notch: polygon(4px 0, calc(100% - 4px) 0, 100% 4px, 100% calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 0 calc(100% - 4px), 0 4px);
   --kb: 0px;
   --vvt: 0px;
+  --controls-h: 100px;
   --safe-t: max(10px, env(safe-area-inset-top));
   --safe-b: max(10px, env(safe-area-inset-bottom));
   --tc: var(--gold);
@@ -164,9 +165,10 @@ body.is-play .sq, body.is-reveal .sq { width: 32px; height: 28px; font-size: 10p
 .note { margin: 10px 0 0; font: 11px/1.5 var(--font); color: var(--ink-dim); text-align: center; text-shadow: 0 1px 0 #000; }
 
 /* ── Play ─────────────────────────────────────────────────── */
-.screen-play { padding: calc(var(--vvt) + var(--safe-t) + 92px) 46px 0 10px; }
+.screen-play { top: calc(var(--vvt) + var(--safe-t) + 92px); bottom: calc(var(--kb) + var(--safe-b) + var(--controls-h) + 8px); padding: 0 46px 0 10px; }
 .prompt-card {
   position: relative; padding: 14px 16px 14px; background: rgba(15, 10, 7, 0.86);
+  min-height: 0; max-height: 100%; overflow-y: auto; overscroll-behavior: contain;
   border: 2px solid var(--line); clip-path: var(--notch);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
 }
@@ -175,6 +177,12 @@ body.is-play .sq, body.is-reveal .sq { width: 32px; height: 28px; font-size: 10p
 .kicker { font: 800 10px/1 var(--mono); letter-spacing: 0.22em; color: var(--heat); }
 .prompt { margin: 10px 0 8px; font: 800 clamp(20px, 6.3vw, 30px)/1.32 var(--font); color: #fff8e8; text-wrap: balance; }
 .rule { margin: 0 0 10px; font: 13px/1.5 var(--font); color: var(--ink-dim); }
+.rule-tools { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.rule-tools button { padding: 6px 0; border: 0; background: transparent; color: var(--gold); font: 12px/1.2 var(--font); text-decoration: underline; text-underline-offset: 3px; }
+.question-details { max-height: 150px; overflow-y: auto; overscroll-behavior: contain; margin-top: 6px; border-top: 1px solid var(--line); font: 12px/1.5 var(--font); color: var(--ink-dim); }
+.question-details p { margin: 8px 0; }
+.rules-clock { color: var(--gold); }
+.ratings-notice { margin: 5px 0 0; font: 11px/1.4 var(--font); color: var(--teal); }
 .foot { font: 600 10px/1 var(--mono); letter-spacing: 0.16em; color: var(--ink-faint); }
 .preview-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: rgba(255, 255, 255, 0.06); }
 .preview-bar i { display: block; height: 100%; background: var(--gold); transform-origin: left; transform: scaleX(var(--pv, 0)); }
@@ -387,7 +395,7 @@ svg.chart { display: block; width: 100%; height: auto; overflow: visible; }
   .screen-play { padding-left: max(16px, calc(50vw - 300px)); padding-right: max(50px, calc(50vw - 300px)); }
 }
 @media (max-height: 560px) {
-  .screen-play { padding-top: calc(var(--vvt) + var(--safe-t) + 82px); }
+  .screen-play { top: calc(var(--vvt) + var(--safe-t) + 82px); }
   .prompt-card { padding: 10px 12px; }
   .prompt { margin: 6px 0 4px; font-size: clamp(18px, 5.4vw, 24px); }
   .rule { margin-bottom: 4px; font-size: 12px; }
@@ -412,3 +420,10 @@ html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after 
 .hosted-home{font:12px/1.55 monospace;color:var(--muted,#bca98a);text-align:center;margin-top:8px;max-width:100%}.hosted-home summary{cursor:pointer}.archive-links{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin:10px 0;max-height:130px;overflow:auto}.hosted-home a{color:#e9bd72}.metric-choice{display:flex;align-items:flex-start;gap:8px;text-align:left;margin:12px 0}.metric-choice input{width:18px;height:18px;flex:none}.appeal{display:block;font:11px/1.35 monospace;max-width:100%;margin:5px auto 0;padding:5px 8px;color:#f2d397;background:#291b0e;border:1px solid #846b41;cursor:pointer;overflow-wrap:anywhere}.home-bottom{max-height:60dvh;overflow-y:auto;scrollbar-width:thin}
 
 .answer-frequency{font-size:10px;color:#b8ada0;white-space:nowrap;grid-column:2;justify-self:start}.acc li .pts{grid-column:3;grid-row:1 / span 2}
+
+/* visualViewport shrinks for the phone keyboard even when CSS viewport height does not. */
+html.compact-play .screen-play { top: calc(var(--vvt) + var(--safe-t) + 82px); }
+html.compact-play .prompt-card { padding: 8px 12px; }
+html.compact-play .prompt { margin: 6px 0 4px; font-size: clamp(18px, 5.4vw, 24px); }
+html.compact-play .rule { margin-bottom: 2px; font-size: 12px; }
+html.compact-play .foot { display: none; }

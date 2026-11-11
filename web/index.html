@@ -8,8 +8,8 @@
   <meta name="referrer" content="no-referrer">
   <meta name="robots" content="noindex, nofollow">
   <title>挖冷门 · 免费测试镜像</title>
-  <link rel="stylesheet" href="/walengmen-web/assets/play.8405fefd.css">
-  <script type="module" src="/walengmen-web/assets/play.de286892.js"></script>
+  <link rel="stylesheet" href="/walengmen-web/assets/play.62354248.css">
+  <script type="module" src="/walengmen-web/assets/play.fff96503.js"></script>
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://walengmen-lab.jefferyhualiu.chatgpt.site; font-src 'none'; media-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"><link rel="icon" href="/walengmen-web/icon.svg"></head>
 <body class="is-home">
   <canvas id="world" aria-hidden="true"></canvas>
@@ -58,7 +58,12 @@
       <div class="kicker" id="promptKicker"></div>
       <h2 class="prompt" id="promptText"></h2>
       <p class="rule" id="promptRule"></p>
-      <div class="foot">▼ <span data-t="play.foot"></span> ▼</div>
+      <div class="rule-tools"><button id="btnRules" type="button" aria-expanded="false" aria-controls="promptDetails" data-t="play.rules"></button><span class="foot">▼ <span data-t="play.foot"></span></span></div>
+      <div class="question-details" id="promptDetails" role="region" aria-labelledby="btnRules" tabindex="0" hidden>
+        <p class="rules-clock" data-t="play.rulesClock"></p>
+        <p id="promptFullRule"></p>
+      </div>
+      <p class="ratings-notice" id="ratingsNotice" hidden></p>
       <div class="preview-bar"><i id="previewFill"></i></div>
     </div>
   </section>
