@@ -4,7 +4,9 @@ import { createHash } from 'node:crypto';
 import { gzipSync, gunzipSync } from 'node:zlib';
 import { resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-const ORIGIN = 'https://walengmen-lab.jefferyhualiu.chatgpt.site';
+// The studio's public API now 307-redirects players to the owned service;
+// read released rounds from the owned service directly (redirects stay refused).
+const ORIGIN = 'https://play.walengmen.com/walengmen';
 const MIRROR = 'https://apexegg.github.io/walengmen-web';
 const sha = (b) => createHash('sha256').update(b).digest('hex');
 const dateKey = (s) => { try { return typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s) && new Date(s + 'T00:00Z').toISOString().slice(0, 10) === s; } catch { return false; } };
