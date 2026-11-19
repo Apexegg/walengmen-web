@@ -1,7 +1,7 @@
 {
-  "stamp": "1e37b862559160267db745f009a78c6e278618ac83069234fcb9162da7be7b42",
+  "stamp": "c4824baaf104cc84ecd14e48353f088119372cd8ef758324eb53e3a94a738a10",
   "source": "https://play.walengmen.com/walengmen",
-  "date": "2026-11-19",
+  "date": "2026-11-20",
   "rounds": [
     {
       "date": "2026-11-07",
@@ -67,8 +67,13 @@
       "date": "2026-11-19",
       "hash": "6619305ed5cd362cea1bc040defed43cc10c3111ad6f5cc3312d4442b7db4947",
       "sourceHash": "59352bae89e82e2e6c26829403f8f9691218dc00357e81bc44c2d9b8009b3b2b"
+    },
+    {
+      "date": "2026-11-20",
+      "hash": "5895462aca363982c423ea42fd3ac1812f5e0c014022f0a731df3a4481c9f19e",
+      "sourceHash": "284606334a928cf48c14c0866ed1cae6ee0e4f44cbc1c81944aa984e204ddfac"
     }
   ],
-  "editions": 22,
-  "bytes": 71114422
+  "editions": 23,
+  "bytes": 72463937
 }
